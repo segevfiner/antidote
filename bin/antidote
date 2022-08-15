@@ -1,0 +1,554 @@
+#!/usr/bin/env zsh
+
+_antidote_bundledir () {
+  emulate -L zsh
+  setopt local_options extended_glob
+  local bundle="$1" 
+  if [[ -d "$bundle" ]]
+  then
+    echo $bundle
+  elif zstyle -t ':antidote:bundle' use-friendly-names
+  then
+    echo $(_antidote_friendlyname "$bundle")
+  else
+    local url=$(_antidote_tourl $bundle) 
+    url=${url:gs/\@/-AT-} 
+    url=${url:gs/\:/-COLON-} 
+    url=${url:gs/\//-SLASH-} 
+    echo $(antidote-home)/$url
+  fi
+}
+
+_antidote_clone () {
+  emulate -L zsh
+  setopt local_options extended_glob
+  local flag_bg=false 
+  if [[ "$1" == "--background" ]]
+  then
+    flag_bg=true 
+    shift
+  fi
+  local bundle=$1 
+  local branch=$2 
+  local giturl=$(_antidote_tourl $bundle) 
+  local bundledir=$(_antidote_bundledir $giturl) 
+  if [[ ! -d $bundledir ]]
+  then
+    [[ -z "$branch" ]] || branch="--branch=$branch" 
+    echo "# antidote cloning $bundle..." >&2
+    git clone --quiet --depth 1 --recurse-submodules --shallow-submodules $branch $giturl $bundledir &
+    [[ "$flag_bg" == true ]] || wait
+  fi
+}
+
+_antidote_friendlyname () {
+  emulate -L zsh
+  setopt local_options extended_glob
+  repo=$1 
+  bundle=${repo%.git} 
+  bundle=${bundle:gs/\:/\/} 
+  local parts=(${(@s:/:)bundle}) 
+  if [[ $#parts -gt 1 ]]
+  then
+    echo $(antidote-home)/${parts[-2]}/${parts[-1]}
+  else
+    echo $(antidote-home)/$bundle
+  fi
+}
+
+_antidote_initfile () {
+  emulate -L zsh
+  setopt local_options extended_glob
+  REPLY= 
+  local dir=$1 
+  if [[ ! -d "$dir" ]]
+  then
+    echo "antidote: bundle directory not found '$dir'." >&2
+    return 1
+  fi
+  local plugin_name=${dir:t} 
+  local initfiles=($dir/$plugin_name.plugin.zsh(N) $dir/$plugin_name.zsh(N) $dir/init.zsh(N) $dir/*.plugin.{z,}sh(N) $dir/*.{z,}sh{-theme,}(N)) 
+  if [[ ${#initfiles[@]} -eq 0 ]]
+  then
+    echo "antidote: no init file detected in '$dir'." >&2
+    return 1
+  fi
+  REPLY=$initfiles[1] 
+  echo $REPLY
+}
+
+_antidote_main () {
+  emulate -L zsh
+  setopt local_options extended_glob
+  0=${(%):-%x} 
+  local o_help o_version
+  zparseopts -D -F -K -- {h,-help}=o_help {v,-version}=o_version || return 1
+  if (( $#o_version ))
+  then
+    local ver='1.3.0' 
+    local gitsha=$(git -C "${0:h:h}" rev-parse --short HEAD 2>/dev/null) 
+    [[ -z "$gitsha" ]] || ver="$ver ($gitsha)" 
+    echo "antidote version $ver"
+  elif (( $#o_help ))
+  then
+    antidote-help "$@"
+  elif [[ $# -eq 0 ]]
+  then
+    antidote-help
+    return 2
+  elif (( $+functions[antidote-${1}] ))
+  then
+    local cmd=$1 
+    shift
+    antidote-${cmd} "$@"
+    return $?
+  else
+    echo "antidote: command not found '${1}'" >&2 && return 1
+  fi
+}
+
+_antidote_parsebundles () {
+  emulate -L zsh
+  setopt local_options extended_glob
+  local instructions=() 
+  if [[ ! -t 0 ]]
+  then
+    while IFS= read -r data || [[ -n "$data" ]]
+    do
+      instructions+=($data) 
+    done
+  elif [[ $# -gt 0 ]]
+  then
+    instructions=("${(s.\n.)${@}}") 
+  else
+    return 1
+  fi
+  local inst bundle parts optstr
+  typeset -A bundle
+  for inst in $instructions
+  do
+    inst=${inst//$'\t'/ } 
+    inst=${inst//$'\r'/ } 
+    inst=${inst%%\#*} 
+    parts=(${(@s: :)inst}) 
+    [[ $#parts -gt 0 ]] || continue
+    bundle=() 
+    bundle[repo]=$parts[1] 
+    optstr=(${parts[@]:1}) 
+    if [[ $#optstr -gt 0 ]]
+    then
+      parts=(${(@s/:/)optstr}) 
+      if [[ $(( $#parts % 2 )) -ne 0 ]]
+      then
+        echo "antidote: bad annotation '$optstr'." >&2
+        return 1
+      fi
+      bundle+=($parts) 
+    fi
+    bundle[kind]=${bundle[kind]:-zsh} 
+    typeset -p bundle
+  done
+}
+
+_antidote_script () {
+  emulate -L zsh
+  setopt local_options extended_glob
+  local bundle=$1 
+  local kind=${2:-zsh} 
+  local bundlepath=$3 
+  local bundledir initfile REPLY
+  local skipfpath=false 
+  __antidote_scriptout () {
+    local fso=$1 
+    local kind=$2 
+    if [[ $kind = fpath ]]
+    then
+      echo "fpath+=( $fso )"
+    elif [[ $kind = path ]]
+    then
+      echo "export PATH=\"$fso:\$PATH\""
+    elif [[ $kind = defer ]]
+    then
+      echo "zsh-defer source $fso"
+    else
+      echo "source $fso"
+    fi
+  }
+  __antidote_err_filenotfound () {
+    echo "antidote: error: failed to bundle: $1: no such file or directory" >&2
+  }
+  if [[ -f $bundle ]]
+  then
+    __antidote_scriptout $bundle $kind
+    return
+  fi
+  if [[ -d $bundle ]]
+  then
+    bundledir=$bundle 
+  else
+    bundledir=$(_antidote_bundledir $bundle) 
+    [[ -d "$bundledir" ]] || {
+      __antidote_err_filenotfound $bundledir && return 1
+    }
+  fi
+  if [[ -n "$bundlepath" ]]
+  then
+    if [[ -f $bundledir/$bundlepath ]]
+    then
+      initfile=$bundledir/$bundlepath 
+      skipfpath=true 
+    elif [[ -d $bundledir/$bundlepath ]]
+    then
+      bundledir=$bundledir/$bundlepath 
+    else
+      __antidote_err_filenotfound $bundledir/$bundlepath
+      return 1
+    fi
+  fi
+  if [[ -z "$initfile" ]] && [[ $kind != (fpath|path) ]]
+  then
+    _antidote_initfile $bundledir > /dev/null || return 1
+    initfile=$REPLY 
+    [[ -f "$initfile" ]] || {
+      __antidote_err_filenotfound $initfile && return 1
+    }
+  fi
+  if [[ $kind = (path|fpath) ]]
+  then
+    __antidote_scriptout $bundledir $kind
+  else
+    [[ $skipfpath = true ]] || __antidote_scriptout $bundledir fpath
+    __antidote_scriptout $initfile $kind
+  fi
+}
+
+_antidote_tourl () {
+  emulate -L zsh
+  setopt local_options extended_glob
+  local bundle=$1 
+  local url=$bundle 
+  if [[ $bundle != *://* && $bundle != git@*:*/* ]]
+  then
+    url=https://github.com/$bundle 
+  fi
+  echo $url
+}
+
+antidote () {
+  emulate -L zsh
+  setopt local_options extended_glob
+  0=${(%):-%x} 
+  if ! (( $+functions[_antidote_main] ))
+  then
+    autoload -Uz ${0:h}/_antidote_main
+  fi
+  _antidote_main "$@"
+}
+
+antidote-bundle () {
+  emulate -L zsh
+  setopt local_options extended_glob no_notify no_monitor
+  local o_help
+  zparseopts -D -F -K -- {h,-help}=o_help || return 1
+  if (( $#o_help ))
+  then
+    antidote-help bundle
+    return
+  fi
+  local bundle
+  local bundlestr=$(_antidote_parsebundles $@) 
+  local bundles=("${(@f)${bundlestr}}") 
+  [[ $#bundles -ne 0 ]] || return 1
+  local giturl parts shortrepo cloning
+  typeset -a cloning
+  for bundlestr in $bundles
+  do
+    eval $bundlestr
+    if [[ $bundle[repo] = \$* ]] || [[ $bundle[repo] = /* ]]
+    then
+      continue
+    elif [[ $bundle[repo] = */* ]]
+    then
+      giturl=${bundle[repo]%.git} 
+      giturl=${giturl:gs/\:/\/} 
+      parts=(${(@s:/:)giturl}) 
+      shortrepo=${(j:/:)${parts[-2,-1]}} 
+      if ! (($cloning[(Ie)$shortrepo]))
+      then
+        cloning+=($shortrepo) 
+        _antidote_clone --background $bundle[repo] $bundle[branch]
+      fi
+    fi
+  done
+  wait
+  local prescript=() script=() 
+  for bundlestr in $bundles
+  do
+    eval $bundlestr
+    if [[ $bundle[kind] = defer ]] && [[ $#prescript -eq 0 ]]
+    then
+      _antidote_clone romkatv/zsh-defer
+      prescript=("if ! (( \$+functions[zsh-defer] )); then" "$(_antidote_script romkatv/zsh-defer | pr -to 2)" "fi") 
+    fi
+    [[ $bundle[kind] != clone ]] || continue
+    script+="$(_antidote_script $bundle[repo] $bundle[kind] $bundle[path])" 
+    [[ $? -eq 0 ]] || return 1
+  done
+  (( ! $#prescript )) || printf "%s\n" "${prescript[@]}"
+  printf "%s\n" "${script[@]}"
+}
+
+antidote-bundles () {
+  local o_help
+  zparseopts -D -F -K -- {h,-help}=o_help || return 1
+  if (( $#o_help ))
+  then
+    antidote-help bundles
+    return
+  fi
+  antidote-bundle "$@"
+}
+
+antidote-help () {
+  local usage=('antidote - the cure to slow zsh plugin management' '' 'usage: antidote [-h|--help] [-v|--version]' '       antidote <command> [<flags>] [<args>...]' '' 'commands: bundle, home, init, install, list, load, path,' '          purge, update') 
+  local o_help
+  zparseopts -D -F -K -- {h,-help}=o_help || return 1
+  local manpage=antidote 
+  if (( $#o_help ))
+  then
+    manpage=antidote-help 
+  elif [[ "$1" == bundles ]]
+  then
+    manpage="antidote-bundle" 
+  elif [[ -n "$1" ]]
+  then
+    manpage="antidote-${1}" 
+  fi
+  man "$manpage" || {
+    printf "%s\n" "${(@)usage}" && return 1
+  }
+}
+
+antidote-home () {
+  emulate -L zsh
+  setopt local_options extended_glob
+  local o_help
+  zparseopts -D -F -K -- {h,-help}=o_help || return 1
+  if (( $#o_help ))
+  then
+    antidote-help home
+    return
+  fi
+  local rootdir
+  if [[ -n "$ANTIDOTE_HOME" ]]
+  then
+    REPLY=$ANTIDOTE_HOME 
+  elif [[ "${OSTYPE}" == darwin* ]]
+  then
+    REPLY="$HOME/Library/Caches/antidote" 
+  elif [[ "${OSTYPE}" == (cygwin|msys)* ]]
+  then
+    REPLY="$LOCALAPPDATA/antidote" 
+  elif [[ -n "$XDG_CACHE_HOME" ]]
+  then
+    REPLY="$XDG_CACHE_HOME/antidote" 
+  else
+    REPLY="$HOME/.cache/antidote" 
+  fi
+  [[ -d $REPLY ]] || mkdir -p $REPLY
+  echo $REPLY
+}
+
+antidote-init () {
+  local o_help
+  zparseopts -D -F -K -- {h,-help}=o_help || return 1
+  if (( $#o_help ))
+  then
+    antidote-help init
+    return
+  fi
+  local script=('#!/usr/bin/env zsh' 'function antidote {' '  case "$1" in' '    bundle|bundles)' '      source <( _antidote_main $@ ) || _antidote_main $@' '      ;;' '    *)' '      _antidote_main $@' '      ;;' '  esac' '}') 
+  printf "%s\n" "${script[@]}"
+}
+
+antidote-install () {
+  emulate -L zsh
+  setopt local_options extended_glob
+  local o_help
+  zparseopts -D -F -K -- {h,-help}=o_help || return 1
+  if (( $#o_help ))
+  then
+    antidote-help install
+    return
+  fi
+  local bundle=$1 
+  local bundlefile=$2 
+  if [[ -z "$bundlefile" ]]
+  then
+    zstyle -s ':antidote:bundle' file 'bundlefile' || bundlefile=${ZDOTDIR:-~}/.zsh_plugins.txt 
+  fi
+  _antidote_clone $bundle
+  if [[ $? -ne 0 ]]
+  then
+    echo "antidote: unable to clone bundle '$bundle'." >&2
+  else
+    echo $bundle >>| $bundlefile
+    echo "Bundle '$bundle' added to '$bundlefile'."
+  fi
+}
+
+antidote-list () {
+  emulate -L zsh
+  setopt local_options extended_glob
+  local o_help
+  zparseopts -D -F -K -- {h,-help}=o_help || return 1
+  if (( $#o_help ))
+  then
+    antidote-help list
+    return
+  fi
+  if [[ $# -ne 0 ]]
+  then
+    echo "antidote: error: unexpected $1, try --help" >&2
+    return 1
+  fi
+  local d
+  local bundle
+  for d in $(antidote-home)/**/.git/..(N)
+  do
+    local url=$(git -C "${d:A}" config remote.origin.url) 
+    printf '%-64s %s\n' $url ${d:A}
+  done
+}
+
+antidote-load () {
+  setopt extended_glob
+  local o_help
+  zparseopts -D -F -K -- {h,-help}=o_help || return 1
+  if (( $#o_help ))
+  then
+    antidote-help load
+    return
+  fi
+  local bundlefile=$1 
+  if [[ -z "$bundlefile" ]]
+  then
+    zstyle -s ':antidote:bundle' file 'bundlefile' || bundlefile=${ZDOTDIR:-~}/.zsh_plugins.txt 
+  fi
+  [[ -f "$bundlefile" ]] || touch "$bundlefile"
+  local staticfile=$2 
+  if [[ -z "$staticfile" ]]
+  then
+    zstyle -s ':antidote:static' file 'staticfile' || staticfile=${bundlefile:r}.zsh 
+  fi
+  [[ "$staticfile" != "$bundlefile" ]] || staticfile="${bundlefile:r}.static.zsh" 
+  [[ $staticfile -nt $bundlefile ]] || antidote bundle < "$bundlefile" >| "$staticfile"
+  source "$staticfile"
+}
+
+antidote-path () {
+  emulate -L zsh
+  setopt local_options extended_glob
+  local o_help
+  zparseopts -D -F -K -- {h,-help}=o_help || return 1
+  if (( $#o_help ))
+  then
+    antidote-help path
+    return
+  fi
+  if [[ $# -eq 0 ]]
+  then
+    echo "antidote: error: required argument 'bundle' not provided, try --help" >&2
+    return 1
+  fi
+  local bundle="$1" 
+  local bundledir=$(_antidote_bundledir $bundle) 
+  if [[ ! -d $bundledir ]]
+  then
+    echo "antidote: error: $bundle does not exist in cloned paths" >&2
+    return 1
+  else
+    echo "$bundledir"
+  fi
+}
+
+antidote-purge () {
+  emulate -L zsh
+  setopt local_options extended_glob
+  local o_help
+  zparseopts -D -F -K -- {h,-help}=o_help || return 1
+  if (( $#o_help ))
+  then
+    antidote-help purge
+    return
+  fi
+  if [[ $# -eq 0 ]]
+  then
+    echo "antidote: error: required argument 'bundle' not provided, try --help" >&2
+    return 1
+  fi
+  local bundle=$1 
+  local bundledir=$(_antidote_bundledir $bundle) 
+  if [[ ! -d $bundledir ]]
+  then
+    echo "antidote: error: $bundle does not exist at the expected location: $bundledir" >&2
+    return 1
+  fi
+  echo "Removing $bundle..."
+  command rm -rf "$bundledir"
+  local bundlefile
+  zstyle -s ':antidote:bundle' file 'bundlefile' || bundlefile=${ZDOTDIR:-~}/.zsh_plugins.txt 
+  echo "removed!"
+  echo "You may also need to remove $bundle from '$bundlefile'."
+}
+
+antidote-selfupdate () {
+  emulate -L zsh
+  setopt local_options extended_glob
+  0=${(%):-%x} 
+  local o_help
+  zparseopts -D -F -K -- {h,-help}=o_help || return 1
+  if (( $#o_help ))
+  then
+    antidote-help selfupdate
+    return
+  fi
+  echo "Updating antidote..."
+  git -C "${0:A:h:h}" pull --ff --rebase --autostash
+}
+
+antidote-update () {
+  emulate -L zsh
+  setopt local_options extended_glob no_notify no_monitor
+  0=${(%):-%x} 
+  local o_help
+  zparseopts -D -F -K -- {h,-help}=o_help || return 1
+  if (( $#o_help ))
+  then
+    antidote-help update
+    return
+  fi
+  __antidote_update () {
+    bundledir="$1" 
+    local url=$(git -C "$bundledir" config remote.origin.url) 
+    local oldsha=$(git -C "$bundledir" rev-parse --short HEAD) 
+    echo "antidote: checking for updates: $url"
+    git -C "$bundledir" pull --quiet --ff --rebase --autostash
+    local newsha=$(git -C "$bundledir" rev-parse --short HEAD) 
+    if [[ $oldsha != $newsha ]]
+    then
+      echo "antidote: updated: $url $oldsha -> $newsha"
+    fi
+  }
+  antidote selfupdate
+  echo "Updating bundles..."
+  local ANTIDOTE_HOME=$(antidote-home) 
+  local d
+  for d in $ANTIDOTE_HOME/**/.git/..
+  do
+    __antidote_update "${d:A}" &
+  done
+  wait
+}
+
+antidote "$@"

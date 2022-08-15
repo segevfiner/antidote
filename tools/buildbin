@@ -1,0 +1,24 @@
+#!/usr/bin/env zsh
+
+function main {
+  0=${(%):-%x}
+  local prjdir=${0:A:h:h}
+  local outfile=$prjdir/bin/antidote
+  [[ -f $outfile ]] && rm $outfile
+  mkdir -p ${outfile:h}
+  echo "#!/usr/bin/env zsh" > $outfile
+
+  local fn
+  for fn in $prjdir/functions/*; do
+    (( $+functions[${fn:t}] )) && unfunction ${fn:t}
+    autoload +X ${fn}
+    echo "" >> $outfile
+    functions -x 2 ${fn:t} >> $outfile
+  done
+
+  echo "" >> $outfile
+  echo 'antidote "$@"' >> $outfile
+
+  chmod 755 $outfile
+}
+main "$@"

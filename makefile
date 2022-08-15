@@ -1,8 +1,9 @@
 .DEFAULT_GOAL := help
-all : test testall testreal major minor rev help
+all : build test testall testreal major minor rev help
 .PHONY : all
 
 build:
+	./tools/buildbin
 	./tools/buildman
 
 test:
@@ -34,6 +35,7 @@ help:
 	@echo ""
 	@echo "Commands:"
 	@echo "  help      shows this message"
+	@echo "  build    build bin and manpages"
 	@echo "  test      run unit tests"
 	@echo "  testreal  run real tests"
 	@echo "  testall   run unit tests and real tests"
