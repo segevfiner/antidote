@@ -1,0 +1,103 @@
+#!/usr/bin/env zsh
+#
+##? usage: antibody [<flags>] <command> [<args> ...]
+##?
+##? A pure Zsh implementation of the legacy antibody plugin manager
+##? Packaged with the antidote plugin manager
+##?
+##? Flags:
+##?   -h, --help           Show context-sensitive help (also try --help-long and --help-man).
+##?   -v, --version        Show application version.
+##?
+##? Commands:
+##?   help [<command>...]
+##?     Show help.
+##?
+##?   bundle [<bundles>...]
+##?     downloads a bundle and prints its source line
+##?
+##?   update
+##?     updates all previously bundled bundles
+##?
+##?   home
+##?     prints where antibody is cloning the bundles
+##?
+##?   purge <bundle>
+##?     purges a bundle from your computer
+##?
+##?   list
+##?     lists all currently installed bundles
+##?
+##?   path <bundle>
+##?     prints the path of a currently cloned bundle
+##?
+##?   init
+##?     initializes the shell so Antibody can work as expected
+##?
+
+ANTIBODY_VERSION="1.9.4"
+
+echos() {
+  print -r "$@"
+}
+
+echoln() {
+  printf '%s\n' "${@[@]}"
+}
+
+echoerr() {
+  print -ru2 "$@"
+}
+
+-antibody-version() {
+  echos "antibody version $ANTIBODY_VERSION"
+}
+
+-antibody-cmd-help() {
+  0=${(%):-%x}
+  grep "^##?" "${0:a}" | cut -c 5-
+}
+
+-antibody-cmd-init() {
+  0=${(%):-%x}
+  local script=(
+    "#!/usr/bin/env zsh"
+    "antibody() {"
+    "  case \"\$1\" in"
+    "  bundle)"
+    "    source <( ${0:a} \$@ ) || ${0:a} \$@"
+    "    ;;"
+    "  *)"
+    "    ${0:a} \$@"
+    "    ;;"
+    "  esac"
+    "}"
+    ""
+    "_antibody() {"
+    "  IFS=' ' read -A reply <<< \"help bundle update home purge list init\""
+    "}"
+    "compctl -K _antibody antibody"
+    ""
+  )
+  echoln "$script[@]"
+}
+
+antibody() {
+  cmd=${1:-help}
+  case "$cmd" in
+    (-v|--version)
+      -antibody-version
+      ;;
+    (-h|--help)
+      -antibody-cmd-help
+      ;;
+    (help|bundle|update|home|purge|list|init)
+      shift
+      -antibody-cmd-${cmd} "$@"
+      ;;
+    *)
+      echoerr "antibody: error: expected command but got \"$cmd\", try --help"
+      ;;
+    esac
+}
+antibody "$@"
