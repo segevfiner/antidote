@@ -118,5 +118,42 @@ compctl -K _antibody antibody
 $
 ```
 
+### home
+
+`antibody home` prints where antibody is cloning bundles. This differs based on which system you are on.
+
+```sh
+$ ANTIBODY_TEST_OSTYPE=linux antibody home | subenv
+$HOME/.cache
+$ ANTIBODY_TEST_OSTYPE=darwin antibody home | subenv
+$HOME/Library/Caches
+$
+```
+
+You can also change Antibody’s home folder by manually setting `ANTIBODY_HOME` to a path of your choosing:
+
+```sh
+$ export ANTIBODY_HOME=$HOME/path/to/antibody/home
+$ antibody home | subenv
+$HOME/path/to/antibody/home
+$
+```
+
+### bundle
+
+TODO:
+
+### update
+
+TODO:
+
+### list
+
+TODO:
+
+### purge
+
+TODO:
+
 [antibody]: https://github.com/getantibody/antibody
 [clitest]: https://github.com/aureliojargas/clitest

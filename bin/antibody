@@ -38,7 +38,7 @@
 ANTIBODY_VERSION="1.9.4"
 
 echos() {
-  print -r "$@"
+  print -r -- "$@"
 }
 
 echoln() {
@@ -46,7 +46,7 @@ echoln() {
 }
 
 echoerr() {
-  print -ru2 "$@"
+  print -ru2 -- "$@"
 }
 
 -antibody-version() {
@@ -80,6 +80,23 @@ echoerr() {
     ""
   )
   echoln "$script[@]"
+}
+
+-antibody-cmd-home() {
+  local result ostype=${ANTIBODY_TEST_OSTYPE:-$OSTYPE}
+  if [[ -n "$ANTIBODY_HOME" ]]; then
+    result=$ANTIBODY_HOME
+  elif [[ "$ostype" == darwin* ]]; then
+    result=$HOME/Library/Caches
+  elif [[ "$ostype" == (cygwin|msys)* ]]; then
+    result=${LOCALAPPDATA:-$LocalAppData}
+    if type cygpath > /dev/null; then
+      result=$(cygpath "$result")
+    fi
+  else
+    result=${XDG_CACHE_HOME:-$HOME/.cache}
+  fi
+  echos $result
 }
 
 antibody() {
