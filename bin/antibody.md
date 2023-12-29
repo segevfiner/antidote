@@ -155,5 +155,15 @@ TODO:
 
 TODO:
 
+### Misc
+
+Some misc testing
+
+```sh
+$ antibody foo  #=> --exit 1
+antibody: error: expected command but got "foo", try --help
+$
+```
+
 [antibody]: https://github.com/getantibody/antibody
 [clitest]: https://github.com/aureliojargas/clitest

@@ -114,6 +114,7 @@ antibody() {
       ;;
     *)
       echoerr "antibody: error: expected command but got \"$cmd\", try --help"
+      return 1
       ;;
     esac
 }
