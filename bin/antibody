@@ -152,12 +152,30 @@ EOS
 
 
 -antibody-cmd-path() {
-  local url=$(-antibody-to-url $1)
+  if (( $# == 0 )); then
+    echoerr "antibody: error: required argument 'bundle' not provided, try --help"
+    return 1
+  fi
+
+  local bundle=$1
+  local bundle_path=$(-antibody-bundle-path $bundle)
+
+  if [[ ! -d $bundle_path ]]; then
+    echoerr "antibody: error: ${bundle} does not exist in cloned paths"
+    return 1
+  fi
+
+  echos $bundle_path
+}
+
+-antibody-bundle-path() {
+  local bundle=$1
+  local url=$(-antibody-to-url $bundle)
   url=${url%.git}
   url=${url:gs/\@/-AT-}
   url=${url:gs/\:/-COLON-}
   url=${url:gs/\//-SLASH-}
-  print $(-antibody-cmd-home)/$url
+  echos $(-antibody-cmd-home)/$url
 }
 
 -antibody-to-url() {
