@@ -119,9 +119,9 @@ EOS
     return 1
   fi
 
-  local bundledir url
-  for bundledir in $antibody_home/*(/N); do
-    url=$(git -C "$bundledir" config remote.origin.url)
+  local bundle_path url
+  for bundle_path in $antibody_home/*(/N); do
+    url=$(git -C "$bundle_path" config remote.origin.url)
     echos "antibody: updating: $url"
     () {
       local oldsha=$(git -C "$1" rev-parse --short HEAD)
@@ -130,7 +130,7 @@ EOS
       if [[ $oldsha != $newsha ]]; then
         echos "antibody: updated: $2 $oldsha -> $newsha"
       fi
-    } "$bundledir" "$url" &
+    } "$bundle_path" "$url" &
   done
   wait
 }
