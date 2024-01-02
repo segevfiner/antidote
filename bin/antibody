@@ -102,6 +102,27 @@ EOS
   fi
   echos $cachedir/antibody
 }
+
+-antibody-cmd-update() {
+  local antibody_home=$(-antibody-cmd-home)
+  echos "Updating all bundles in $antibody_home..."
+
+  local bundledir url
+  for bundledir in $antibody_home/*(/N); do
+    url=$(git -C "$bundledir" config remote.origin.url)
+    echos "antibody: updating: $url"
+    () {
+      local oldsha=$(git -C "$1" rev-parse --short HEAD)
+      git -C "$1" pull --quiet --ff --rebase --autostash
+      local newsha=$(git -C "$1" rev-parse --short HEAD)
+      if [[ $oldsha != $newsha ]]; then
+        echos "antibody: updated: $2 $oldsha -> $newsha"
+      fi
+    } "$bundledir" "$url" &
+  done
+  wait
+}
+
 }
 
 -antibody() {
