@@ -130,6 +130,25 @@ EOS
   wait
 }
 
+-antibody-cmd-purge() {
+  if (( $# == 0 )); then
+    echoerr "antibody: error: required argument 'bundle' not provided, try --help"
+    return 1
+  fi
+
+  echos "Removing $1..."
+  local bundle_path=$(-antibody-cmd-path $1)
+  if [[ $bundle_path != "$HOME"/* ]]; then
+    echoerr "antibody: error: bundle path failed sanity check: $bundle_path"
+    return 2
+  elif [[ -d "$bundle_path" ]]; then
+    rm -rf -- $bundle_path
+  else
+    echoerr "antibody: error: $1 does not exist on expected location: $bundle_path"
+    return 1
+  fi
+}
+
 
 -antibody-cmd-path() {
   local url=$(-antibody-to-url $1)
