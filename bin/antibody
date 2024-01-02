@@ -143,6 +143,7 @@ EOS
     return 2
   elif [[ -d "$bundle_path" ]]; then
     rm -rf -- $bundle_path
+    echos "removed!"
   else
     echoerr "antibody: error: $1 does not exist on expected location: $bundle_path"
     return 1
