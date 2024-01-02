@@ -39,7 +39,7 @@ $ test "$(antibody -v)" = "$(antibody --version)"  #=> --exit 0
 $
 ```
 
-### Help
+### help
 
 Show help with the help command.
 
@@ -144,6 +144,30 @@ You can also change Antibody’s home folder by manually setting `ANTIBODY_HOME`
 $ export ANTIBODY_HOME=$HOME/path/to/antibody/home
 $ antibody home | subenv
 $HOME/path/to/antibody/home
+$
+```
+
+Clean up for more tests.
+
+```sh
+$ unset ANTIBODY_HOME
+$
+```
+
+### Path
+
+You can see the path being used for a cloned bundle.
+
+```sh
+$ antibody path ohmyzsh/ohmyzsh | subenv
+$HOME/Library/Caches/antibody/https-COLON--SLASH--SLASH-github.com-SLASH-ohmyzsh-SLASH-ohmyzsh
+$
+```
+
+This is particularly useful for projects like oh-my-zsh that rely on storing its path in the $ZSH environment variable:
+
+```sh
+$ ZSH=$(antibody path ohmyzsh/ohmyzsh)
 $
 ```
 
