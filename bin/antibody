@@ -12,6 +12,11 @@ echoln() {
   printf '%s\n' "${@[@]}"
 }
 
+echof() {
+  local fmt=$1; shift
+  printf $fmt "${@[@]}"
+}
+
 echoerr() {
   print -ru2 -- "$@"
 }
@@ -150,6 +155,19 @@ EOS
   fi
 }
 
+-antibody-cmd-list() {
+  local antibody_home=$(-antibody-cmd-home)
+  if [[ ! -d $antibody_home ]]; then
+    echoerr "antibody: error: failed to list bundles: open ${antibody_home}: no such file or directory"
+    return 1
+  fi
+
+  local bundle_path url
+  for bundle_path in $antibody_home/*(/N); do
+    url=$(git -C "$bundle_path" config remote.origin.url)
+    echof '%s\t%s\n' $url $bundle_path
+  done
+}
 
 -antibody-cmd-path() {
   if (( $# == 0 )); then
