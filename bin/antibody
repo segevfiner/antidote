@@ -109,6 +109,11 @@ EOS
   local antibody_home=$(-antibody-cmd-home)
   echos "Updating all bundles in $antibody_home..."
 
+  if [[ ! -d $antibody_home ]]; then
+    echoerr "antibody: error: failed to update: open ${antibody_home}: no such file or directory"
+    return 1
+  fi
+
   local bundledir url
   for bundledir in $antibody_home/*(/N); do
     url=$(git -C "$bundledir" config remote.origin.url)
