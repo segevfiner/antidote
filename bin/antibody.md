@@ -118,15 +118,23 @@ compctl -K _antibody antibody
 $
 ```
 
-### home
+### Home
 
-`antibody home` prints where antibody is cloning bundles. This differs based on which system you are on.
+You can also see where antibody is keeping the plugins with the home command:
+
+```sh
+$ antibody home | subenv
+$HOME/Library/Caches/antibody
+$
+```
+
+The home is different per system.
 
 ```sh
 $ ANTIBODY_TEST_OSTYPE=linux antibody home | subenv
-$HOME/.cache
+$HOME/.cache/antibody
 $ ANTIBODY_TEST_OSTYPE=darwin antibody home | subenv
-$HOME/Library/Caches
+$HOME/Library/Caches/antibody
 $
 ```
 

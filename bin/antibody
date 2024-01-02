@@ -84,20 +84,24 @@ EOS
 }
 
 -antibody-cmd-home() {
-  local result ostype=${ANTIBODY_TEST_OSTYPE:-$OSTYPE}
   if [[ -n "$ANTIBODY_HOME" ]]; then
-    result=$ANTIBODY_HOME
-  elif [[ "$ostype" == darwin* ]]; then
-    result=$HOME/Library/Caches
+    echos $ANTIBODY_HOME
+    return
+  fi
+
+  local cachedir ostype=${ANTIBODY_TEST_OSTYPE:-$OSTYPE}
+  if [[ "$ostype" == darwin* ]]; then
+    cachedir=$HOME/Library/Caches
   elif [[ "$ostype" == (cygwin|msys)* ]]; then
-    result=${LOCALAPPDATA:-$LocalAppData}
+    cachedir=${LOCALAPPDATA:-$LocalAppData}
     if type cygpath > /dev/null; then
-      result=$(cygpath "$result")
+      cachedir=$(cygpath "$result")
     fi
   else
-    result=${XDG_CACHE_HOME:-$HOME/.cache}
+    cachedir=${XDG_CACHE_HOME:-$HOME/.cache}
   fi
-  echos $result
+  echos $cachedir/antibody
+}
 }
 
 -antibody() {
