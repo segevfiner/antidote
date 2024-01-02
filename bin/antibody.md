@@ -51,7 +51,7 @@ A pure Zsh implementation of the legacy antibody plugin manager
 Packaged with the antidote plugin manager
 
 Flags:
-  -h, --help           Show context-sensitive help (also try --help-long and --help-man).
+  -h, --help           Show context-sensitive help.
   -v, --version        Show application version.
 
 Commands:
@@ -111,7 +111,7 @@ antibody() {
 }
 
 _antibody() {
-  IFS=' ' read -A reply <<< "help bundle update home purge list init"
+  IFS=' ' read -A reply <<< "help bundle update home purge list path init"
 }
 compctl -K _antibody antibody
 
