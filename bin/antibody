@@ -2,6 +2,8 @@
 
 ANTIBODY_VERSION="1.9.4"
 
+setopt extended_glob no_monitor pipefail
+
 echos() {
   print -r -- "$@"
 }
