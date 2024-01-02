@@ -123,6 +123,22 @@ EOS
   wait
 }
 
+
+-antibody-cmd-path() {
+  local url=$(-antibody-to-url $1)
+  url=${url%.git}
+  url=${url:gs/\@/-AT-}
+  url=${url:gs/\:/-COLON-}
+  url=${url:gs/\//-SLASH-}
+  print $(-antibody-cmd-home)/$url
+}
+
+-antibody-to-url() {
+  local url=$1
+  if [[ $url != *://* && $url != git@*:*/* ]]; then
+    url=https://github.com/$1
+  fi
+  echos $url
 }
 
 -antibody() {
