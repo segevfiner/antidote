@@ -168,7 +168,7 @@ EOS
     -antibody-version && return
   fi
 
-  local cmd=${1:-help}
+  local cmd=${1:-help}; shift
   local commands=(help bundle update home purge list path init)
   if ! (( $commands[(Ie)$cmd] )); then
     echoerr "antibody: error: expected command but got \"$cmd\", try --help"
